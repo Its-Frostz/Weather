@@ -8,7 +8,19 @@
 #include <chrono>
 #include <iomanip>
 
-class WeatherDataCleaner {
+// Platform-specific headers for memory mapping
+#ifdef _WIN32
+    #include <windows.h>
+    #include <io.h>
+    #include <fcntl.h>
+#else
+    #include <sys/mman.h>
+    #include <sys/stat.h>
+    #include <fcntl.h>
+    #include <unistd.h>
+#endif
+
+class WeatherDataCleanerMapped {
 private:
     static constexpr size_t BUFFER_SIZE = 1024 * 1024; // 1MB buffer for efficient I/O
     char buffer[BUFFER_SIZE];
@@ -71,57 +83,139 @@ private:
     }
 
 public:
+    // Memory-mapped I/O processing for maximum performance
     bool processFile(const std::string& inputPath, const std::string& outputPath) {
         auto startTime = std::chrono::high_resolution_clock::now();
         
-        std::ifstream input(inputPath, std::ios::binary);
-        if (!input.is_open()) {
-            std::cerr << "Error: Cannot open input file '" << inputPath << "'" << std::endl;
+#ifdef _WIN32
+        // Windows memory mapping implementation
+        HANDLE hFile = CreateFileA(inputPath.c_str(), GENERIC_READ, FILE_SHARE_READ, nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
+        if (hFile == INVALID_HANDLE_VALUE) {
+            std::cerr << "Error: Cannot open input file for memory mapping" << std::endl;
             return false;
         }
         
+        LARGE_INTEGER fileSize;
+        if (!GetFileSizeEx(hFile, &fileSize)) {
+            CloseHandle(hFile);
+            std::cerr << "Error: Cannot get file size" << std::endl;
+            return false;
+        }
+        
+        HANDLE hMapFile = CreateFileMappingA(hFile, nullptr, PAGE_READONLY, 0, 0, nullptr);
+        if (hMapFile == nullptr) {
+            CloseHandle(hFile);
+            std::cerr << "Error: Cannot create file mapping" << std::endl;
+            return false;
+        }
+        
+        char* mapped = static_cast<char*>(MapViewOfFile(hMapFile, FILE_MAP_READ, 0, 0, 0));
+        if (mapped == nullptr) {
+            CloseHandle(hMapFile);
+            CloseHandle(hFile);
+            std::cerr << "Error: Cannot map view of file" << std::endl;
+            return false;
+        }
+        
+        size_t fileLength = static_cast<size_t>(fileSize.QuadPart);
+#else
+        // Unix/Linux memory mapping implementation
+        int fd = open(inputPath.c_str(), O_RDONLY);
+        if (fd == -1) {
+            std::cerr << "Error: Cannot open input file for memory mapping" << std::endl;
+            return false;
+        }
+        
+        struct stat sb;
+        if (fstat(fd, &sb) == -1) {
+            close(fd);
+            std::cerr << "Error: Cannot get file stats" << std::endl;
+            return false;
+        }
+        
+        char* mapped = static_cast<char*>(mmap(nullptr, sb.st_size, PROT_READ, MAP_PRIVATE, fd, 0));
+        if (mapped == MAP_FAILED) {
+            close(fd);
+            std::cerr << "Error: Cannot memory map file" << std::endl;
+            return false;
+        }
+        
+        size_t fileLength = static_cast<size_t>(sb.st_size);
+#endif
+        
+        // Open output file
         std::ofstream output(outputPath, std::ios::binary);
         if (!output.is_open()) {
-            std::cerr << "Error: Cannot create output file '" << outputPath << "'" << std::endl;
+#ifdef _WIN32
+            UnmapViewOfFile(mapped);
+            CloseHandle(hMapFile);
+            CloseHandle(hFile);
+#else
+            munmap(mapped, fileLength);
+            close(fd);
+#endif
+            std::cerr << "Error: Cannot create output file" << std::endl;
             return false;
         }
         
-        // Set custom buffer for both streams to improve I/O performance
-        input.rdbuf()->pubsetbuf(buffer, BUFFER_SIZE / 2);
-        output.rdbuf()->pubsetbuf(buffer + BUFFER_SIZE / 2, BUFFER_SIZE / 2);
+        // Set output buffer
+        output.rdbuf()->pubsetbuf(buffer, BUFFER_SIZE);
         
-        std::string line;
+        // Process mapped memory
+        const char* start = mapped;
+        const char* end = mapped + fileLength;
+        const char* lineStart = start;
         size_t lineCount = 0;
-        size_t processedLines = 0;
         
-        std::cout << "Processing weather data..." << std::endl;
+        std::cout << "Processing weather data with memory mapping..." << std::endl;
         
-        // Process file line by line for memory efficiency
-        while (std::getline(input, line)) {
-            lineCount++;
+        while (lineStart < end) {
+            // Find line end
+            const char* lineEnd = std::find(lineStart, end, '\n');
             
-            // Progress indicator for large files
+            // Skip empty lines
+            if (lineEnd > lineStart) {
+                // Create string from memory range (excluding \r if present)
+                const char* actualLineEnd = lineEnd;
+                if (actualLineEnd > lineStart && *(actualLineEnd - 1) == '\r') {
+                    actualLineEnd--;
+                }
+                
+                std::string line(lineStart, actualLineEnd);
+                
+                // Process line using existing methods
+                std::vector<std::string> fields = parseCSVLine(line);
+                writeCSVLine(output, fields);
+            }
+            
+            lineCount++;
             if (lineCount % 10000 == 0) {
                 std::cout << "\rProcessed " << lineCount << " lines..." << std::flush;
             }
             
-            // Parse and clean the CSV line
-            std::vector<std::string> fields = parseCSVLine(line);
-            
-            // Write cleaned line to output
-            writeCSVLine(output, fields);
-            processedLines++;
+            // Move to next line
+            lineStart = (lineEnd == end) ? end : lineEnd + 1;
         }
         
-        input.close();
+        // Cleanup
         output.close();
+        
+#ifdef _WIN32
+        UnmapViewOfFile(mapped);
+        CloseHandle(hMapFile);
+        CloseHandle(hFile);
+#else
+        munmap(mapped, fileLength);
+        close(fd);
+#endif
         
         auto endTime = std::chrono::high_resolution_clock::now();
         auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(endTime - startTime);
         
-        std::cout << "\n\nProcessing completed successfully!" << std::endl;
-        std::cout << "Lines processed: " << processedLines << std::endl;
+        std::cout << "\n\nMemory-mapped processing completed successfully!" << std::endl;
+        std::cout << "Lines processed: " << lineCount << std::endl;
         std::cout << "Processing time: " << duration.count() << " ms" << std::endl;
+        std::cout << "Processing speed: " << (lineCount * 1000.0 / duration.count()) << " lines/second" << std::endl;
         std::cout << "Output saved to: " << outputPath << std::endl;
         
         return true;
@@ -153,15 +247,15 @@ public:
 int main() {
     // Input and output file paths
     const std::string inputFile = "../Data/Raw/KIIT_University_Weather_3-1-24_12-00_AM_1_Year_1754733830_v2.csv";
-    const std::string outputFile = "../Data/Cleaned/weather_data_cleaned_buffered.csv";
+    const std::string outputFile = "../Data/Cleaned/weather_data_cleaned_mapped.csv";
     
-    std::cout << "Weather Data Cleaner - Buffered I/O" << std::endl;
-    std::cout << "====================================" << std::endl;
+    std::cout << "Weather Data Cleaner - Memory-Mapped I/O" << std::endl;
+    std::cout << "=========================================" << std::endl;
     std::cout << "Input file:  " << inputFile << std::endl;
     std::cout << "Output file: " << outputFile << std::endl;
     std::cout << std::endl;
     
-    WeatherDataCleaner cleaner;
+    WeatherDataCleanerMapped cleaner;
     
     if (cleaner.processFile(inputFile, outputFile)) {
         cleaner.validateCleaning(outputFile, 10);
@@ -170,7 +264,7 @@ int main() {
         std::cout << "• Replaced '-' and '--' with '0'" << std::endl;
         std::cout << "• Replaced empty/whitespace cells with '0'" << std::endl;
         std::cout << "• Preserved original CSV structure and headers" << std::endl;
-        std::cout << "• Buffered I/O for reliable performance" << std::endl;
+        std::cout << "• Memory-mapped I/O for maximum performance" << std::endl;
         
         return 0;
     } else {

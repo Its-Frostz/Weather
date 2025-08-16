@@ -14,10 +14,10 @@ def run_python_benchmark(runs=3):
     
     for i in range(runs):
         print(f"  Run {i+1}/{runs}...", end="", flush=True)
-        start = time.perf_counter()
+        
+        # Change to Cleaner directory and run Python script
         result = subprocess.run(['python', 'weather_cleaner_simple.py'], 
-                              capture_output=True, text=True)
-        end = time.perf_counter()
+                              capture_output=True, text=True, cwd='./Cleaner')
         
         if result.returncode == 0:
             # Extract time from output
@@ -29,7 +29,7 @@ def run_python_benchmark(runs=3):
                     print(f" {time_str}s")
                     break
         else:
-            print(" FAILED")
+            print(f" FAILED - {result.stderr}")
     
     return times
 
@@ -41,30 +41,40 @@ def run_cpp_benchmark(runs=3):
     
     for i in range(runs):
         print(f"  Run {i+1}/{runs}...", end="", flush=True)
-        result = subprocess.run(['./weather_cleaner.exe'], 
-                              capture_output=True, text=True)
         
-        if result.returncode == 0:
-            lines = result.stdout.split('\n')
-            buffered_time = None
-            mapped_time = None
-            
+        # Run buffered version from Cleaner directory
+        result_buffered = subprocess.run(['.\weather_cleaner.exe'], 
+                                      capture_output=True, text=True, cwd='./Cleaner', shell=True)
+        
+        # Run mapped version from Cleaner directory
+        result_mapped = subprocess.run(['.\weather_cleaner_mapped.exe'], 
+                                    capture_output=True, text=True, cwd='./Cleaner', shell=True)
+        
+        buffered_time = None
+        mapped_time = None
+        
+        if result_buffered.returncode == 0:
+            lines = result_buffered.stdout.split('\n')
             for line in lines:
                 if 'Processing time:' in line and 'ms' in line:
                     time_ms = float(line.split(':')[1].strip().split()[0])
-                    time_s = time_ms / 1000.0
-                    
-                    if buffered_time is None:
-                        buffered_time = time_s
-                    else:
-                        mapped_time = time_s
-            
-            if buffered_time and mapped_time:
-                times_buffered.append(buffered_time)
-                times_mapped.append(mapped_time)
-                print(f" Buffered: {buffered_time:.2f}s, Mapped: {mapped_time:.2f}s")
+                    buffered_time = time_ms / 1000.0
+                    break
+        
+        if result_mapped.returncode == 0:
+            lines = result_mapped.stdout.split('\n')
+            for line in lines:
+                if 'Processing time:' in line and 'ms' in line:
+                    time_ms = float(line.split(':')[1].strip().split()[0])
+                    mapped_time = time_ms / 1000.0
+                    break
+        
+        if buffered_time and mapped_time:
+            times_buffered.append(buffered_time)
+            times_mapped.append(mapped_time)
+            print(f" Buffered: {buffered_time:.2f}s, Mapped: {mapped_time:.2f}s")
         else:
-            print(" FAILED")
+            print(f" FAILED - Buffered: {result_buffered.returncode}, Mapped: {result_mapped.returncode}")
     
     return times_buffered, times_mapped
 
@@ -85,7 +95,7 @@ def calculate_stats(times):
     }
 
 def main():
-    input_file = "Data/KIIT_University_Weather_3-1-24_12-00_AM_1_Year_1754733830_v2.csv"
+    input_file = "Data/Raw/KIIT_University_Weather_3-1-24_12-00_AM_1_Year_1754733830_v2.csv"
     
     # Get file size
     file_size = os.path.getsize(input_file) / (1024 * 1024)  # MB
