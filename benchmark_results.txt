@@ -1,29 +1,29 @@
 BENCHMARK RESULTS
 ==================================================
-Test Date: 2025-08-16 19:13:15
+Test Date: 2025-08-16 19:23:25
 Input file: Data/Raw/KIIT_University_Weather_3-1-24_12-00_AM_1_Year_1754733830_v2.csv
 File size: 31.1 MB
 Total lines: 67,484
 
 Python (Standard CSV):
-  Raw times: [2.75, 2.98, 2.81]
-  Average: 2.85s
-  Best:    2.75s
-  Worst:   2.98s
-  Speed:   23706 lines/sec
+  Raw times: [2.61, 2.51, 2.46]
+  Average: 2.53s
+  Best:    2.46s
+  Worst:   2.61s
+  Speed:   26709 lines/sec
 
 C++ (Buffered I/O):
-  Raw times: [4.908, 4.88, 4.924]
-  Average: 4.90s
-  Best:    4.88s
-  Worst:   4.92s
-  Speed:   13761 lines/sec
+  Raw times: [4.506, 4.536, 4.55]
+  Average: 4.53s
+  Best:    4.51s
+  Worst:   4.55s
+  Speed:   14895 lines/sec
 
 C++ (Memory-Mapped I/O):
-  Raw times: [4.476, 4.611, 4.502]
-  Average: 4.53s
-  Best:    4.48s
-  Worst:   4.61s
-  Speed:   14898 lines/sec
+  Raw times: [4.217, 4.178, 4.306]
+  Average: 4.23s
+  Best:    4.18s
+  Worst:   4.31s
+  Speed:   15940 lines/sec
 
-WINNER: Python is 37.2% faster than C++ memory-mapped
+WINNER: Python is 40.3% faster than C++ memory-mapped

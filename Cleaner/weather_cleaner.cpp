@@ -152,8 +152,8 @@ public:
 
 int main() {
     // Input and output file paths
-    const std::string inputFile = "../Data/Raw/KIIT_University_Weather_3-1-24_12-00_AM_1_Year_1754733830_v2.csv";
-    const std::string outputFile = "../Data/Cleaned/weather_data_cleaned_buffered.csv";
+    const std::string inputFile = "../../Data/Raw/KIIT_University_Weather_3-1-24_12-00_AM_1_Year_1754733830_v2.csv";
+    const std::string outputFile = "../../Data/Cleaned/weather_data_cleaned_buffered.csv";
     
     std::cout << "Weather Data Cleaner - Buffered I/O" << std::endl;
     std::cout << "====================================" << std::endl;
@@ -165,12 +165,7 @@ int main() {
     
     if (cleaner.processFile(inputFile, outputFile)) {
         cleaner.validateCleaning(outputFile, 10);
-        
-        std::cout << "\nData cleaning rules applied:" << std::endl;
-        std::cout << "• Replaced '-' and '--' with '0'" << std::endl;
-        std::cout << "• Replaced empty/whitespace cells with '0'" << std::endl;
-        std::cout << "• Preserved original CSV structure and headers" << std::endl;
-        std::cout << "• Buffered I/O for reliable performance" << std::endl;
+        std::cout << "• Buffered I/O" << std::endl;
         
         return 0;
     } else {

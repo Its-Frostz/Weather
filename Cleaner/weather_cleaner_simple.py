@@ -109,8 +109,8 @@ def validate_output(file_path, sample_lines=10):
 
 def main():
     """Main function."""
-    input_file = "Data/KIIT_University_Weather_3-1-24_12-00_AM_1_Year_1754733830_v2.csv"
-    output_file = "weather_data_cleaned_simple.csv"
+    input_file = "../Data/Raw/KIIT_University_Weather_3-1-24_12-00_AM_1_Year_1754733830_v2.csv"
+    output_file = "../Data/Cleaned/weather_data_cleaned_simple.csv"
     
     print("Weather Data Cleaner - Simple & Fast")
     print("=" * 40)

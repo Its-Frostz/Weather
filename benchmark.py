@@ -42,13 +42,13 @@ def run_cpp_benchmark(runs=3):
     for i in range(runs):
         print(f"  Run {i+1}/{runs}...", end="", flush=True)
         
-        # Run buffered version from Cleaner directory
+        # Run buffered version from Cleaner/exe directory
         result_buffered = subprocess.run(['.\weather_cleaner.exe'], 
-                                      capture_output=True, text=True, cwd='./Cleaner', shell=True)
+                                      capture_output=True, text=True, cwd='./Cleaner/exe', shell=True)
         
-        # Run mapped version from Cleaner directory
+        # Run mapped version from Cleaner/exe directory
         result_mapped = subprocess.run(['.\weather_cleaner_mapped.exe'], 
-                                    capture_output=True, text=True, cwd='./Cleaner', shell=True)
+                                    capture_output=True, text=True, cwd='./Cleaner/exe', shell=True)
         
         buffered_time = None
         mapped_time = None
